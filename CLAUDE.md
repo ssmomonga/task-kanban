@@ -28,6 +28,22 @@ npx vitest run -t "見出し"                    # テスト名で絞り込み
 - **Tailwind CSS v4 は Turbopack ローダー経由**: PostCSS 設定はなく、`next.config.ts` の `turbopack.rules` で `@tailwindcss/turbopack` を `*.css` に適用している。`tailwind.config.*` も存在せず、テーマは `src/app/globals.css` の `@theme inline` で CSS 変数として定義する（`--background` / `--foreground`、ダークモードは `prefers-color-scheme`）。
 - **型付きルート props**: `LayoutProps<"/">` などのグローバル型ヘルパーを使う（Next.js が生成する型。`.next/types` に出力される）。
 
+## Supabase
+
+- **プロジェクト**: `task-kanban`（ref `zyfeylmxsswukbtaphai`、リージョン ap-south-1）。スキーマ・キー・ログの確認は Supabase MCP で行う。
+- **環境変数**: `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`（キー一覧は `.env.example`、実際の値は `.env.local`）。キーはレガシーの anon キー（JWT）ではなく publishable key（`sb_publishable_...`）を使う。`process.env` を直接読まず `src/lib/supabase/env.ts` の `getSupabaseEnv()` を経由する（未設定時は日本語のエラーを投げる）。
+- **クライアントの使い分け**（`@supabase/ssr`）:
+  - Server Component / Server Action / Route Handler → `src/lib/supabase/server.ts` の `createClient()`（async。内部で `await cookies()` する）
+  - Client Component → `src/lib/supabase/client.ts` の `createClient()`
+  - 同名関数なので import パスで区別する。サーバー用は `next/headers` に依存するため Client Component から import しない。
+- **起動時の接続確認**: `src/instrumentation.ts` の `register()` が Node.js ランタイムで1回だけ `checkSupabaseConnection()`（`src/lib/supabase/check-connection.ts`）を実行し、失敗時のみ `console.error` を出す（成功時は何も出さない）。Auth のヘルスチェック `/auth/v1/health` を使うため、URL とキーの正しさは確認できるが、DB 本体への疎通確認ではない。
+- **ログ**: `next dev` のサーバーログは `.next/dev/logs/next-development.log` にも出力される。
+- **未整備のもの**（必要になったら追加する）:
+  - セッション更新用の Proxy（旧 middleware）。認証を導入するときに必要。Next.js 16 の Proxy 規約は `node_modules/next/dist/docs/` で確認すること。
+  - DB の型定義。テーブル作成後に Supabase MCP の `generate_typescript_types` で生成し、`createClient<Database>()` に渡す。
+  - RLS ポリシー。publishable key はブラウザに公開されるため、テーブルを作ったら必ず RLS を有効にしてポリシーを設定する。
+- **テスト**: Supabase への通信は外部依存なので `vi.stubGlobal("fetch", ...)` でモックし、環境変数は `vi.stubEnv` で設定する（例: `src/__tests__/check-connection.test.ts`）。
+
 ## コーディングルール
 - 変更後は必ず `npm test` でテストが通ることを確認してください
 - 変更は1つの関心事に絞り、小さい単位で行ってください
