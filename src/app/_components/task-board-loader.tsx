@@ -1,4 +1,6 @@
+import { CircleAlert } from "lucide-react";
 import { createTask, deleteTask, updateTask } from "@/app/actions";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createClient } from "@/lib/supabase/server";
 import { KanbanBoard } from "./kanban-board";
 
@@ -12,9 +14,11 @@ export async function TaskBoardLoader() {
 
   if (error) {
     return (
-      <p role="alert" className="text-red-600 dark:text-red-400">
-        タスクの取得に失敗しました。時間をおいて再読み込みしてください。
-      </p>
+      <Alert variant="destructive">
+        <CircleAlert aria-hidden="true" />
+        <AlertTitle>タスクの取得に失敗しました。</AlertTitle>
+        <AlertDescription>時間をおいて再読み込みしてください。</AlertDescription>
+      </Alert>
     );
   }
 

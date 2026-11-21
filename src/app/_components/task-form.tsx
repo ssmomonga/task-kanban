@@ -1,8 +1,15 @@
 "use client";
 
 import { useId, useState, useTransition, type FormEvent } from "react";
+import { CircleAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Textarea } from "@/components/ui/textarea";
 import { TASK_STATUSES, type Task } from "@/lib/tasks/types";
 import { validateTaskInput } from "@/lib/tasks/validation";
+import { cn } from "@/lib/utils";
 
 type Props = {
   /** フォームのアクセシブルな名前 */
@@ -16,13 +23,11 @@ type Props = {
   onCancel?: () => void;
 };
 
-const inputClass =
-  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
-
 export function TaskForm({ label, task, submitLabel, pendingLabel, onSubmit, onCancel }: Props) {
   const id = useId();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const isCreate = !task;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,62 +48,62 @@ export function TaskForm({ label, task, submitLabel, pendingLabel, onSubmit, onC
   }
 
   return (
-    <form aria-label={label} onSubmit={handleSubmit} className="flex flex-col gap-3" noValidate>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${id}-title`} className="text-sm font-medium">
-          タイトル
-        </label>
-        <input id={`${id}-title`} name="title" defaultValue={task?.title} className={inputClass} />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${id}-description`} className="text-sm font-medium">
-          説明
-        </label>
-        <textarea
-          id={`${id}-description`}
-          name="description"
-          defaultValue={task?.description}
-          rows={2}
-          className={inputClass}
-        />
+    <form aria-label={label} onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+      <div className={cn("grid gap-4", isCreate && "md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]")}>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${id}-title`}>タイトル</Label>
+          <Input
+            id={`${id}-title`}
+            name="title"
+            defaultValue={task?.title}
+            placeholder={isCreate ? "例: 企画書を作成する" : undefined}
+            aria-invalid={error ? true : undefined}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${id}-description`}>説明</Label>
+          <Textarea
+            id={`${id}-description`}
+            name="description"
+            defaultValue={task?.description}
+            placeholder={isCreate ? "詳細やメモ（任意）" : undefined}
+            rows={2}
+            className="min-h-8"
+          />
+        </div>
       </div>
       {task && (
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${id}-status`} className="text-sm font-medium">
-            ステータス
-          </label>
-          <select id={`${id}-status`} name="status" defaultValue={task.status} className={inputClass}>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${id}-status`}>ステータス</Label>
+          <NativeSelect
+            id={`${id}-status`}
+            name="status"
+            defaultValue={task.status}
+            className="w-full"
+          >
             {TASK_STATUSES.map((status) => (
-              <option key={status.value} value={status.value}>
+              <NativeSelectOption key={status.value} value={status.value}>
                 {status.label}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       )}
       {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="flex items-center gap-1.5 text-sm text-destructive">
+          <CircleAlert className="size-4 shrink-0" aria-hidden="true" />
           {error}
         </p>
       )}
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {isPending ? pendingLabel : submitLabel}
-        </button>
+      <div className="flex justify-end gap-2">
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isPending}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-          >
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>
             キャンセル
-          </button>
+          </Button>
         )}
+        <Button type="submit" disabled={isPending} className="min-w-20">
+          {isPending ? pendingLabel : submitLabel}
+        </Button>
       </div>
     </form>
   );

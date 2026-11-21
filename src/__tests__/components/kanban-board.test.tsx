@@ -208,6 +208,17 @@ describe("KanbanBoard タスク削除", () => {
     expect(deleteTask).not.toHaveBeenCalled();
   });
 
+  it("確認ダイアログを開くと、誤操作防止のためキャンセルにフォーカスが当たる", async () => {
+    const { user } = setup([makeTask({ title: "企画" })]);
+
+    await user.click(within(card("企画")).getByRole("button", { name: "削除" }));
+
+    const dialog = screen.getByRole("alertdialog");
+    await vi.waitFor(() =>
+      expect(within(dialog).getByRole("button", { name: "キャンセル" })).toHaveFocus(),
+    );
+  });
+
   it("確認ダイアログでキャンセルすると、ダイアログが閉じタスクは残る", async () => {
     const { user, deleteTask } = setup([makeTask({ title: "企画" })]);
 

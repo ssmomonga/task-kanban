@@ -1,8 +1,21 @@
 "use client";
 
-import { useEffect, useId } from "react";
+import { useRef } from "react";
+import { TriangleAlert } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Props = {
+  open: boolean;
   title: string;
   message: string;
   confirmLabel: string;
@@ -12,8 +25,9 @@ type Props = {
   onCancel: () => void;
 };
 
-/** 取り消せない操作の前に表示する確認ダイアログ。表示するときだけ描画する */
+/** 取り消せない操作の前に表示する確認ダイアログ */
 export function ConfirmDialog({
+  open,
   title,
   message,
   confirmLabel,
@@ -22,52 +36,34 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: Props) {
-  const id = useId();
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !isPending) onCancel();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isPending, onCancel]);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/40 p-4">
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={`${id}-title`}
-        aria-describedby={`${id}-message`}
-        className="w-full max-w-sm rounded-lg bg-white p-5 shadow-lg dark:bg-zinc-900"
-      >
-        <h2 id={`${id}-title`} className="text-lg font-semibold">
-          {title}
-        </h2>
-        <p id={`${id}-message`} className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          {message}
-        </p>
-        <div className="mt-5 flex justify-end gap-2">
-          {/* 誤操作を防ぐため、初期フォーカスはキャンセルに置く */}
-          <button
-            type="button"
-            autoFocus
-            onClick={onCancel}
-            disabled={isPending}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-          >
+    <AlertDialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        // 処理中は Esc やキャンセルで閉じない
+        if (!nextOpen && !isPending) onCancel();
+      }}
+    >
+      {/* 誤操作を防ぐため、初期フォーカスはキャンセルに置く */}
+      <AlertDialogContent initialFocus={cancelRef}>
+        <AlertDialogHeader>
+          <AlertDialogMedia className="bg-destructive/10 text-destructive">
+            <TriangleAlert aria-hidden="true" />
+          </AlertDialogMedia>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{message}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel ref={cancelRef} disabled={isPending}>
             キャンセル
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isPending}
-            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-          >
+          </AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={onConfirm} disabled={isPending}>
             {isPending ? pendingLabel : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

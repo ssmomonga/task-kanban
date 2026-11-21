@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { Task } from "@/lib/tasks/types";
 import { TaskForm } from "./task-form";
 
@@ -23,7 +25,8 @@ export function TaskCard({ task, onUpdate, onRequestDelete }: Props) {
   return (
     <article
       aria-label={task.title}
-      className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
+      data-slot="card"
+      className="group/task rounded-xl bg-card p-3 text-sm text-card-foreground shadow-xs ring-1 ring-foreground/10 transition-shadow hover:shadow-md hover:ring-foreground/20 has-focus-visible:ring-foreground/20"
     >
       {isEditing ? (
         <TaskForm
@@ -35,28 +38,36 @@ export function TaskCard({ task, onUpdate, onRequestDelete }: Props) {
           onCancel={() => setIsEditing(false)}
         />
       ) : (
-        <div className="flex flex-col gap-2">
-          <h3 className="font-medium break-words">{task.title}</h3>
-          {task.description && (
-            <p className="whitespace-pre-wrap break-words text-sm text-zinc-600 dark:text-zinc-400">
-              {task.description}
-            </p>
-          )}
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
+        <div className="flex items-start gap-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h3 className="leading-snug font-medium break-words">{task.title}</h3>
+            {task.description && (
+              <p className="whitespace-pre-wrap break-words text-muted-foreground">
+                {task.description}
+              </p>
+            )}
+          </div>
+          {/* タッチ端末では常に表示し、マウス操作ではホバー・フォーカス時に強調する */}
+          <div className="-mt-0.5 -mr-1 flex shrink-0 gap-0.5 opacity-100 transition-opacity md:opacity-40 md:group-hover/task:opacity-100 md:group-focus-within/task:opacity-100">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="編集"
+              title="編集"
               onClick={() => setIsEditing(true)}
-              className="rounded px-2 py-1 text-sm text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-zinc-800"
             >
-              編集
-            </button>
-            <button
-              type="button"
+              <Pencil />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="削除"
+              title="削除"
               onClick={onRequestDelete}
-              className="rounded px-2 py-1 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-zinc-800"
+              className="hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
             >
-              削除
-            </button>
+              <Trash2 />
+            </Button>
           </div>
         </div>
       )}
