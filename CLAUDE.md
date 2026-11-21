@@ -25,8 +25,19 @@ npx vitest run -t "見出し"                    # テスト名で絞り込み
 
 - **App Router + `src/` 構成**: ルートは `src/app/` 配下。パスエイリアス `@/*` → `./src/*`。
 - **Cache Components が有効** (`next.config.ts` の `cacheComponents: true` + `partialPrefetching: true`): データ取得はデフォルトで動的で、キャッシュしたい箇所に `use cache` / `cacheLife` / `cacheTag` を明示する。静的シェルを先に返し動的部分はストリーミングされる。Node.js ランタイム必須のため、ルートに `runtime` セグメント設定を export してはいけない。従来の `revalidate` / `dynamic` などのセグメント設定を使う前に `01-app/02-guides/migrating-to-cache-components.md` を確認すること。
-- **Tailwind CSS v4 は Turbopack ローダー経由**: PostCSS 設定はなく、`next.config.ts` の `turbopack.rules` で `@tailwindcss/turbopack` を `*.css` に適用している。`tailwind.config.*` も存在せず、テーマは `src/app/globals.css` の `@theme inline` で CSS 変数として定義する（`--background` / `--foreground`、ダークモードは `prefers-color-scheme`）。
+- **Tailwind CSS v4 は Turbopack ローダー経由**: PostCSS 設定はなく、`next.config.ts` の `turbopack.rules` で `@tailwindcss/turbopack` を `*.css` に適用している。`tailwind.config.*` も存在せず、テーマは `src/app/globals.css` の `@theme inline` で CSS 変数として定義する（shadcn/ui のテーマ変数。下記参照）。
+- **ダークモードは `prefers-color-scheme` 方式**: `globals.css` で `@custom-variant dark (@media (prefers-color-scheme: dark));` とし、ダーク用の変数は `@media (prefers-color-scheme: dark) { :root { ... } }` に置いている。`.dark` クラスはどこにも付けていない。
 - **型付きルート props**: `LayoutProps<"/">` などのグローバル型ヘルパーを使う（Next.js が生成する型。`.next/types` に出力される）。
+
+## shadcn/ui
+
+- **構成**: `components.json` で style `base-nova`（プリミティブは Radix ではなく **Base UI** = `@base-ui/react`）、baseColor `neutral`、アイコンは `lucide-react`。alias は `@/components/ui`（生成コンポーネント）、`@/lib/utils`、`@/hooks`。
+- **追加**: `npx shadcn@latest add <名前>` で `src/components/ui/` に生成される。生成ファイルは自分のコードとして編集してよい。ドキュメントやサンプルを見るときは Radix 版ではなく Base UI 版（`components/base/...`）を参照する（props や合成の仕方が異なる）。
+- **`cn`**: `src/lib/utils.ts` は公式の `cn` パッケージ（clsx + tailwind-merge の代替）を再 export しているだけ。生成コンポーネントは `"cn"` から直接 import している。
+- **CLI 実行後は `globals.css` の差分を必ず確認する**: `init`（再実行や `--reinstall` を含む）は以下を既定値に戻すことがあるので、戻されていたら直す。
+  - `@custom-variant dark (&:is(.dark *));` と `.dark { ... }` に書き換わる → 上記の `prefers-color-scheme` 方式に戻す（戻さないと `dark:` が全部効かなくなる）。
+  - `--font-sans: var(--font-sans);`（自己参照）になる → `var(--font-geist-sans)` に戻す（`layout.tsx` の `next/font` が定義している変数）。
+- **テーマ変数**: `--background` / `--foreground` / `--primary` / `--muted` / `--border` / `--destructive` などを `oklch` で定義し、`bg-primary`・`text-muted-foreground` などのユーティリティとして使える。`shadcn` パッケージは `@import "shadcn/tailwind.css"` のために dependencies に必要（削除しない）。
 
 ## Supabase
 
@@ -65,6 +76,7 @@ npx vitest run -t "見出し"                    # テスト名で絞り込み
   - `server.ts` の `createClient()` は `cookies()` を使うので、`use cache` の中では呼べない。キャッシュしたくなったら Cookie を使わないクライアントを別に用意する。
 - **ファイル配置**:
   - ルート専用の UI → `src/app/_components/`（`_` 付きでルーティング対象外）
+  - shadcn/ui の汎用コンポーネント → `src/components/ui/`（CLI が生成）。ルート専用の UI からはこれを組み合わせて使う
   - ドメインの型と純粋ロジック → `src/lib/<ドメイン>/`（例: `src/lib/tasks/types.ts`、`validation.ts`）
   - DB の行型は `database.types.ts` から派生させる（`Tables<"tasks">`）。自前で型を書き直さない。
 - **Server Action の書き方**（`src/app/actions.ts` を手本にする）:
@@ -82,8 +94,44 @@ npx vitest run -t "見出し"                    # テスト名で絞り込み
   - 文言はすべて日本語。
   - 列は `<section aria-label="未着手">`（role `region`）、カードは `<article aria-label={タイトル}>`、フォームは `<form aria-label="タスクを追加">`。
   - エラーは `role="alert"` で表示する。
-  - 取り消せない操作の確認は `_components/confirm-dialog.tsx`（`role="alertdialog"`）を使う。初期フォーカスはキャンセル、Esc で閉じる。`window.confirm` は使わない。
-  - スタイルは Tailwind のユーティリティを直接書く。色は zinc 系を基本にし、`dark:` のダークモード対応を必ず付ける。
+  - 取り消せない操作の確認は `_components/confirm-dialog.tsx`（shadcn の `AlertDialog` = Base UI。`role="alertdialog"`）を使う。`open` で開閉し常時マウントしておく（閉じるアニメーションのため）。初期フォーカスはキャンセル（`initialFocus`）、Esc で閉じる。`window.confirm` は使わない。
+  - 見た目のルールは下の「デザインルール」に従う。
+  - セレクトは Base UI の `Select` ではなく `NativeSelect`（ネイティブの `<select>`）を使う。テストが `user.selectOptions` / `toHaveValue` に依存しているため。
+  - アイコンだけのボタンは `aria-label` でアクセシブル名を付ける（例: カードの「編集」「削除」）。Base UI の `Button` は既定が `type="button"` なので、送信ボタンには `type="submit"` を明示する。
+  - 上記の aria-label・role・文言は保つ（テストが依存している）。
+
+## デザインルール
+
+shadcn/ui（base-nova / neutral）の見た目を土台に、余白と角丸を大きめにとった落ち着いたトーンにそろえる。新しい画面や部品を作るときは、既存の `src/app/_components/` と見た目を合わせる。
+
+- **部品の選び方**: まず `src/components/ui/` の shadcn/ui を使う（`Card` / `Button` / `Input` / `Textarea` / `Label` / `NativeSelect` / `Badge` / `Alert` / `AlertDialog`）。足りなければ `npx shadcn@latest add` で追加し、Tailwind で一から組むのは最後の手段にする。生成ファイルを直すのは、全体に効かせたい変更のときだけ。個別の調整は使う側の `className` で行う。
+- **色**:
+  - テーマ変数のユーティリティだけを使う（`bg-background` / `bg-card` / `bg-muted` / `text-foreground` / `text-muted-foreground` / `bg-primary` / `text-destructive` / `ring-foreground/10` など）。`zinc-*`・`gray-*`・`#hex` は直書きしない。テーマ変数ならダークモードも自動で切り替わるので `dark:` は付けない。
+  - 色に意味を持たせるのはステータスだけ。未着手 = slate、進行中 = amber、完了 = emerald。定義は `kanban-board.tsx` の `STATUS_ACCENTS` にまとめ、ここだけライト・ダーク両方の値（`dark:`）を書く。新しいステータス色もここに足す。
+  - 危険な操作とエラーは `destructive` を使う（削除ボタンのホバー、`Alert variant="destructive"`、フォームのエラー文）。
+  - 主ボタンは `bg-primary`（ライトでは黒、ダークでは白）。1つのフォームに主ボタンは1つまで。
+- **レイアウト**:
+  - ページは `max-w-6xl` で中央寄せ、左右 `px-4`、上下 `py-8 sm:py-12`。セクションどうしの間隔は `gap-6`〜`gap-8`。
+  - 背景は `bg-gradient-to-b from-muted/70 via-background to-background` の薄いグラデーション。
+  - カンバンの列は `md:grid-cols-3` で、モバイルでは縦に積む。`items-start` にして、列ごとの高さは中身に合わせる。
+  - 追加フォームは `md` 以上でタイトルと説明を横に並べる（2:3）。カード内の編集フォームは縦1列にする。
+- **形と奥行き**:
+  - 角丸は外側ほど大きくする。列 `rounded-2xl` → カード `rounded-xl` → 入力欄とボタン `rounded-lg`。
+  - 枠は `border` ではなく `ring-1 ring-foreground/10` で付け、影は控えめにする（`shadow-xs`、ホバー時だけ `shadow-md`）。
+  - 列は `bg-muted/60`（ダークは `dark:bg-muted/30`）のレーンにする。枠はカードより薄い `ring-foreground/5` にし、上端にステータス色のライン（`h-1`）を引く。
+- **文字**:
+  - h1 は `text-2xl font-semibold tracking-tight`。カードや列の見出しは `text-sm font-semibold`（カードのタイトルは `font-medium`）。補足文は `text-sm text-muted-foreground`。
+  - 件数などの数字には `tabular-nums` を付ける。ユーザーが入力した文字列には `break-words` を付ける（説明はさらに `whitespace-pre-wrap`）。
+- **アイコン**:
+  - `lucide-react` だけを使う。基本は `size-4`。空の状態に置くアイコンは `size-5`、ヘッダーのロゴは `size-5` を `size-10` の `rounded-xl bg-primary` の箱に入れる。
+  - 飾りのアイコンには `aria-hidden="true"` を付ける。アイコンだけのボタンは `aria-label` と `title` を付ける。
+- **ボタン**: 主操作は `default`、キャンセルは `outline`、カードの中の操作は `ghost` + `size="icon-sm"`、削除の確定は `destructive`。カードの中の操作ボタンは、`md` 以上では普段は薄く（`opacity-40`）し、ホバー時とフォーカス時に濃くする。タッチ端末では常に表示する。
+- **状態の見せ方**:
+  - 空の列は、破線の枠（`border-dashed border-foreground/15`）に、アイコンと「タスクはありません」を置く。
+  - 読み込み中は `LoaderCircle` の `animate-spin` と文言を並べて出す。
+  - 入力エラーは、フォームの中に `CircleAlert` を付けた `text-destructive` の文で出し、入力欄には `aria-invalid` を付ける。画面全体のエラーは `Alert variant="destructive"` で出す。
+  - 確認ダイアログは `AlertDialogMedia` に警告アイコン（`bg-destructive/10 text-destructive`）を置く。
+- **確認のしかた**: デザインを変えたら Playwright MCP でスクリーンショットを撮り、ライト・ダーク（`browser_emulate_media`）とモバイル幅 390px（`browser_resize`）を確認する。横スクロールが出ていないことは `scrollWidth` と `clientWidth` を比べて確かめる。ヘッドレス Chromium では、ダイアログ背景の `backdrop-blur` がずれて写ることがある。レイアウトが崩れたかどうかは、要素の位置を計測して判断する。
 
 ## コーディングルール
 - 変更後は必ず `npm test` でテストが通ることを確認してください
