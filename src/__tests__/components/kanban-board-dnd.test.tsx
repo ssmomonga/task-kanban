@@ -159,4 +159,64 @@ describe("KanbanBoard ドラッグ＆ドロップ", () => {
     expect(within(column("未着手")).getByRole("article", { name: "企画" })).toBeInTheDocument();
     expect(updateTask).not.toHaveBeenCalled();
   });
+
+  describe("同じカードを続けて動かす", () => {
+    function setupTwoMoves() {
+      const task = makeTask({ title: "企画", status: "todo" });
+      const { updateTask } = setup([task]);
+      const resolvers: ((value: ActionResult<Task>) => void)[] = [];
+      updateTask.mockImplementation(() => new Promise((r) => resolvers.push(r)));
+      drop(task.id, "in_progress");
+      drop(task.id, "done");
+      return { task, updateTask, resolvers };
+    }
+
+    it("1回目の保存が2回目より遅れて成功しても、画面は最後に動かした列のまま", async () => {
+      const { task, resolvers } = setupTwoMoves();
+
+      await act(async () => resolvers[1]({ ok: true, data: { ...task, status: "done" } }));
+      await act(async () => resolvers[0]({ ok: true, data: { ...task, status: "in_progress" } }));
+
+      expect(within(column("完了")).getByRole("article", { name: "企画" })).toBeInTheDocument();
+      expect(within(column("進行中")).queryByRole("article", { name: "企画" })).not.toBeInTheDocument();
+    });
+
+    it("1回目の保存が失敗しても、2回目で動かした列に残り、エラーも出さない", async () => {
+      const { task, resolvers } = setupTwoMoves();
+
+      await act(async () => resolvers[0]({ ok: false, error: "タスクの更新に失敗しました" }));
+      await act(async () => resolvers[1]({ ok: true, data: { ...task, status: "done" } }));
+
+      expect(within(column("完了")).getByRole("article", { name: "企画" })).toBeInTheDocument();
+      expect(screen.queryByText("タスクの更新に失敗しました")).not.toBeInTheDocument();
+    });
+
+    it("2回目の保存が失敗すると、2回目の移動前（1回目の移動先）の列に戻る", async () => {
+      const { task, resolvers } = setupTwoMoves();
+
+      await act(async () => resolvers[0]({ ok: true, data: { ...task, status: "in_progress" } }));
+      await act(async () => resolvers[1]({ ok: false, error: "タスクの更新に失敗しました" }));
+
+      expect(within(column("進行中")).getByRole("article", { name: "企画" })).toBeInTheDocument();
+      expect(screen.getByText("タスクの更新に失敗しました")).toBeInTheDocument();
+    });
+  });
+
+  it("保存中に同じカードのタイトルを編集しても、移動の保存結果で古いタイトルに戻らない", async () => {
+    const task = makeTask({ title: "企画", status: "todo" });
+    const { user, updateTask } = setup([task]);
+    let resolveMove: (value: ActionResult<Task>) => void = () => {};
+    updateTask.mockReturnValueOnce(new Promise((r) => (resolveMove = r)));
+    updateTask.mockResolvedValueOnce({ ok: true, data: { ...task, title: "新企画", status: "done" } });
+
+    drop(task.id, "done");
+    await user.click(within(card("企画")).getByRole("button", { name: "編集" }));
+    const titleInput = within(card("企画")).getByRole("textbox", { name: /タイトル/ });
+    await user.clear(titleInput);
+    await user.type(titleInput, "新企画");
+    await user.click(within(card("企画")).getByRole("button", { name: "保存" }));
+    await act(async () => resolveMove({ ok: true, data: { ...task, status: "done" } }));
+
+    expect(within(column("完了")).getByRole("article", { name: "新企画" })).toBeInTheDocument();
+  });
 });

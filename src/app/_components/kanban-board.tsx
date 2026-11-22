@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Accessibility, defaultPreset } from "@dnd-kit/dom";
 import { DragDropProvider } from "@dnd-kit/react";
 import { CircleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,6 +18,7 @@ import {
 import { isTaskStatus } from "@/lib/tasks/validation";
 import { AddTaskCard } from "./add-task-card";
 import { ConfirmDialog } from "./confirm-dialog";
+import { createAnnouncements, screenReaderInstructions } from "./drag-announcements";
 import { TaskCard } from "./task-card";
 import { TaskColumn } from "./task-column";
 
@@ -40,6 +42,14 @@ export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }
   // 削除・移動の失敗など、特定のフォームに属さないエラー
   const [boardError, setBoardError] = useState<string | null>(null);
   const [isDeleting, startDeleteTransition] = useTransition();
+  // カードごとの最新の移動の連番（古い移動の応答を無視するため）
+  const latestMoves = useRef(new Map<string, number>());
+  // 読み上げ文の作成時に最新のタイトルを引くための参照（プラグインは最初の1回だけ作られる）
+  const [titles] = useState(() => new Map<string, string>());
+  useEffect(() => {
+    titles.clear();
+    for (const task of tasks) titles.set(task.id, task.title);
+  }, [tasks, titles]);
 
   async function handleCreate(formData: FormData) {
     const result = await createTask(formData);
@@ -59,15 +69,25 @@ export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }
     const task = tasks.find((t) => t.id === id);
     if (!task || task.status === status) return;
 
-    setBoardError(null);
+    // 同じカードを続けて動かしたとき、古い移動の結果で新しい移動を上書きしないよう、最新の移動だけを有効にする
+    const moveId = (latestMoves.current.get(id) ?? 0) + 1;
+    latestMoves.current.set(id, moveId);
+    const isLatest = () => latestMoves.current.get(id) === moveId;
+
     setTasks((prev) => changeTaskStatus(prev, id, status));
     const result = await updateTask(id, toTaskFormData(task, status));
+    if (!isLatest()) return;
     if (!result.ok) {
+      // 保存中に別の操作で動かされていなければ、元の列に戻す
       setTasks((prev) => changeTaskStatus(prev, id, task.status));
       setBoardError(result.error);
       return;
     }
-    setTasks((prev) => prev.map((t) => (t.id === id ? result.data : t)));
+    // 保存中に編集されたタイトル・説明を消さないよう、画面の値は保ったまま更新日時だけ反映する
+    setBoardError(null);
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, updated_at: result.data.updated_at } : t)),
+    );
   }
 
   function handleRequestDelete(task: Task) {
@@ -92,6 +112,17 @@ export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }
 
   const handleCancelDelete = useCallback(() => setDeleteTarget(null), []);
 
+  const dragPlugins = useMemo(
+    () => [
+      ...defaultPreset.plugins.filter((plugin) => plugin !== Accessibility),
+      Accessibility.configure({
+        announcements: createAnnouncements((id) => titles.get(id) ?? ""),
+        screenReaderInstructions,
+      }),
+    ],
+    [titles],
+  );
+
   const tasksByStatus = useMemo(() => groupTasksByStatus(tasks), [tasks]);
 
   return (
@@ -106,6 +137,7 @@ export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }
       )}
 
       <DragDropProvider
+        plugins={dragPlugins}
         onDragEnd={(event) => {
           const { source, target } = event.operation;
           if (event.canceled || !source || !target) return;
