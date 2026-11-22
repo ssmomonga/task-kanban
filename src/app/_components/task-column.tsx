@@ -3,19 +3,19 @@ import { Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Task, TaskStatus } from "@/lib/tasks/types";
 
+/** 列ごとのアクセント色（見出しのドットと上端のライン） */
+const STATUS_ACCENTS: Record<TaskStatus, { dot: string; bar: string }> = {
+  todo: { dot: "bg-slate-400 dark:bg-slate-500", bar: "bg-slate-400/70 dark:bg-slate-500/70" },
+  in_progress: { dot: "bg-amber-500 dark:bg-amber-400", bar: "bg-amber-500/70 dark:bg-amber-400/70" },
+  done: { dot: "bg-emerald-500 dark:bg-emerald-400", bar: "bg-emerald-500/70 dark:bg-emerald-400/70" },
+};
+
 type Props = {
   status: TaskStatus;
   label: string;
   tasks: Task[];
   /** 各タスクのカードを描画する（`<li>` は列側で付ける） */
   renderTask: (task: Task) => ReactNode;
-};
-
-/** 列ごとのアクセント色（見出しのドットと上端のライン） */
-const STATUS_ACCENTS: Record<TaskStatus, { dot: string; bar: string }> = {
-  todo: { dot: "bg-slate-400 dark:bg-slate-500", bar: "bg-slate-400/70 dark:bg-slate-500/70" },
-  in_progress: { dot: "bg-amber-500 dark:bg-amber-400", bar: "bg-amber-500/70 dark:bg-amber-400/70" },
-  done: { dot: "bg-emerald-500 dark:bg-emerald-400", bar: "bg-emerald-500/70 dark:bg-emerald-400/70" },
 };
 
 /** カンバンの1列。見出し・件数と、タスク一覧（0件なら空の表示）を出す */

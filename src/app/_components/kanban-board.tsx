@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { CircleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { groupTasksByStatus } from "@/lib/tasks/group";
@@ -71,7 +71,7 @@ export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }
 
   const handleCancelDelete = useCallback(() => setDeleteTarget(null), []);
 
-  const tasksByStatus = groupTasksByStatus(tasks);
+  const tasksByStatus = useMemo(() => groupTasksByStatus(tasks), [tasks]);
 
   return (
     <div className="flex flex-col gap-6">
