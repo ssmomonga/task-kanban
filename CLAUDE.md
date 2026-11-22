@@ -60,7 +60,7 @@ npx vitest run -t "見出し"                    # テスト名で絞り込み
 - **認証と RLS**: 認証は未導入。RLS は有効で、anon に全操作を許可するポリシーを付けている（URL とキーを知っていれば誰でも読み書きできる）。認証を入れるときは `user_id` 列の追加、ポリシーの作り直し、Server Action でのユーザー確認が必要。
 - **未整備のもの**（必要になったら追加する）:
   - セッション更新用の Proxy（旧 middleware）。認証を導入するときに必要。Next.js 16 の Proxy 規約は `node_modules/next/dist/docs/` で確認すること。
-  - 並び順の列（ドラッグ＆ドロップを入れるとき）。今は `created_at` の昇順で表示している。
+  - 並び順の列（列の中での並べ替えを入れるとき）。今は `created_at` の昇順で表示している。ドラッグ＆ドロップは列の移動（ステータス変更）だけに対応している。
 - **テスト**: Supabase への通信は外部依存なのでモックし、環境変数は `vi.stubEnv` で設定する。
   - `fetch` を直接呼ぶ処理 → `vi.stubGlobal("fetch", ...)`（例: `src/__tests__/check-connection.test.ts`）
   - Supabase クライアントを使う処理 → `vi.mock("@/lib/supabase/server")` でクエリビルダーを差し替える（例: `src/__tests__/app/actions.test.ts`）。クエリビルダーは thenable なので、`createClient()` の戻り値そのものを thenable にしないこと（`await` で解決されてしまう）。
@@ -72,6 +72,7 @@ npx vitest run -t "見出し"                    # テスト名で絞り込み
   - `src/app/page.tsx`（同期。h1 と `<Suspense>` だけ）→ `_components/task-board-loader.tsx`（async Server Component が取得）→ `_components/kanban-board.tsx`（Client Component）
   - 変更処理は `src/app/actions.ts` の Server Action（`createTask` / `updateTask` / `deleteTask`）。
   - 画面への即時反映は、Server Action の戻り値で `KanbanBoard` のローカル状態（`useState(initialTasks)`）を更新して行う。`refresh()` / `revalidatePath` は使っていない。ページは動的に描画されるので、再読み込みすれば DB の最新状態になる。
+  - 例外はドラッグ＆ドロップでの列の移動。保存を待たずに先にローカル状態を変え（`src/lib/tasks/move.ts` の `changeTaskStatus`）、失敗したらそのタスクだけ元のステータスに戻して `Alert` でエラーを出す。保存は既存の `updateTask` に `toTaskFormData(task, status)` を渡して行う。
   - Server Action は import せず、props で Client Component に渡す（テストで `vi.fn()` に差し替えるため）。
   - `server.ts` の `createClient()` は `cookies()` を使うので、`use cache` の中では呼べない。キャッシュしたくなったら Cookie を使わないクライアントを別に用意する。
 - **ファイル配置**:
@@ -98,6 +99,7 @@ npx vitest run -t "見出し"                    # テスト名で絞り込み
   - 見た目のルールは下の「デザインルール」に従う。
   - セレクトは Base UI の `Select` ではなく `NativeSelect`（ネイティブの `<select>`）を使う。テストが `user.selectOptions` / `toHaveValue` に依存しているため。
   - アイコンだけのボタンは `aria-label` でアクセシブル名を付ける（例: カードの「編集」「削除」）。Base UI の `Button` は既定が `type="button"` なので、送信ボタンには `type="submit"` を明示する。
+  - ドラッグ＆ドロップは `@dnd-kit/react`（`DragDropProvider` は `KanbanBoard`、`useDroppable` は `TaskColumn`（id = ステータス）、`useDraggable` は `TaskCard`（id = タスク id））。ドラッグはカードの「ドラッグして移動」ハンドルからだけ始める（編集・削除ボタンと競合させないため）。編集中はハンドルを出さず、`article` に `ref` もつながない（つなぐと dnd-kit が `role="button"` などを付け、`article` として取得できなくなる）。
   - 上記の aria-label・role・文言は保つ（テストが依存している）。
 
 ## デザインルール
@@ -151,6 +153,7 @@ shadcn/ui（base-nova / neutral）の見た目を土台に、余白と角丸を�
 - `async` な Server Component は Vitest で描画しきれない。同期コンポーネントのみユニットテストし、async コンポーネントは E2E で検証する。ただし、`<Suspense>` の fallback は、`@/lib/supabase/server` の `createClient` を解決しない Promise にモックすれば確認できる（例: `src/__tests__/page.test.tsx`）。
 - **進め方はテストファースト**: 先にテストを書き、`npx vitest run <ファイル>` で失敗することを確認してから実装する。
 - 操作は `@testing-library/user-event` を使う（`const user = userEvent.setup()`）。`fireEvent` は使わない。
+- ドラッグ＆ドロップは jsdom に要素の位置がないため再現できない。`vi.mock("@dnd-kit/react")` で `DragDropProvider` の `onDragEnd` を受け取り、ドロップのイベントを直接送って画面の結果を確かめる（例: `src/__tests__/components/kanban-board-dnd.test.tsx`）。実際のドラッグは Playwright MCP で確認する。ほかのテストは本物の `@dnd-kit/react` のまま描画する。
 - 要素は role とアクセシブルな名前で取得する（`getByRole("region", { name: "未着手" })`、`within(...)` で範囲を絞る）。`data-testid` は使わない。
 - 非同期の反映は `findBy*` か `vi.waitFor` で待つ。送信中の状態を確かめるときは、解決を手動で制御する Promise をモックに返させる（例: `kanban-board.test.tsx` の「保存中は追加ボタンが無効」）。
 - `vi.mock` するモジュールに依存するものは、`vi.mock` の後に `await import(...)` で読み込む。
