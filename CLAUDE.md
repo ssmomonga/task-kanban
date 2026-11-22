@@ -107,7 +107,7 @@ shadcn/ui（base-nova / neutral）の見た目を土台に、余白と角丸を�
 - **部品の選び方**: まず `src/components/ui/` の shadcn/ui を使う（`Card` / `Button` / `Input` / `Textarea` / `Label` / `NativeSelect` / `Badge` / `Alert` / `AlertDialog`）。足りなければ `npx shadcn@latest add` で追加し、Tailwind で一から組むのは最後の手段にする。生成ファイルを直すのは、全体に効かせたい変更のときだけ。個別の調整は使う側の `className` で行う。
 - **色**:
   - テーマ変数のユーティリティだけを使う（`bg-background` / `bg-card` / `bg-muted` / `text-foreground` / `text-muted-foreground` / `bg-primary` / `text-destructive` / `ring-foreground/10` など）。`zinc-*`・`gray-*`・`#hex` は直書きしない。テーマ変数ならダークモードも自動で切り替わるので `dark:` は付けない。
-  - 色に意味を持たせるのはステータスだけ。未着手 = slate、進行中 = amber、完了 = emerald。定義は `kanban-board.tsx` の `STATUS_ACCENTS` にまとめ、ここだけライト・ダーク両方の値（`dark:`）を書く。新しいステータス色もここに足す。
+  - 色に意味を持たせるのはステータスだけ。未着手 = slate、進行中 = amber、完了 = emerald。定義は `task-column.tsx` の `STATUS_ACCENTS` にまとめ、ここだけライト・ダーク両方の値（`dark:`）を書く。新しいステータス色もここに足す。
   - 危険な操作とエラーは `destructive` を使う（削除ボタンのホバー、`Alert variant="destructive"`、フォームのエラー文）。
   - 主ボタンは `bg-primary`（ライトでは黒、ダークでは白）。1つのフォームに主ボタンは1つまで。
 - **レイアウト**:
