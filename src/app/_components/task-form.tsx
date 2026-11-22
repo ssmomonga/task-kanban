@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useState, useTransition, type FormEvent } from "react";
-import { CircleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TASK_STATUSES, type Task } from "@/lib/tasks/types";
 import { validateTaskInput } from "@/lib/tasks/validation";
 import { cn } from "@/lib/utils";
+import { FormError } from "./form-error";
 
 type Props = {
   /** フォームのアクセシブルな名前 */
@@ -89,12 +89,7 @@ export function TaskForm({ label, task, submitLabel, pendingLabel, onSubmit, onC
           </NativeSelect>
         </div>
       )}
-      {error && (
-        <p role="alert" className="flex items-center gap-1.5 text-sm text-destructive">
-          <CircleAlert className="size-4 shrink-0" aria-hidden="true" />
-          {error}
-        </p>
-      )}
+      {error && <FormError message={error} />}
       <div className="flex justify-end gap-2">
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>
