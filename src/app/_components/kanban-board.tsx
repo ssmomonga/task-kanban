@@ -1,18 +1,24 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Accessibility, defaultPreset } from "@dnd-kit/dom";
+import { DragDropProvider } from "@dnd-kit/react";
 import { CircleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { groupTasksByStatus } from "@/lib/tasks/group";
+import { changeTaskStatus, toTaskFormData } from "@/lib/tasks/move";
 import {
   TASK_STATUSES,
   type CreateTaskAction,
   type DeleteTaskAction,
   type Task,
+  type TaskStatus,
   type UpdateTaskAction,
 } from "@/lib/tasks/types";
+import { isTaskStatus } from "@/lib/tasks/validation";
 import { AddTaskCard } from "./add-task-card";
 import { ConfirmDialog } from "./confirm-dialog";
+import { createAnnouncements, screenReaderInstructions } from "./drag-announcements";
 import { TaskCard } from "./task-card";
 import { TaskColumn } from "./task-column";
 
@@ -25,6 +31,7 @@ type Props = {
 
 /**
  * カンバン本体。Server Action の戻り値でローカルの一覧を更新し、操作結果をすぐ画面に反映する。
+ * ドラッグ＆ドロップでの移動だけは、保存を待たずに先に移動し、失敗したら元の列に戻す。
  * アクションは props で受け取る（テストでは差し替える）。
  */
 export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }: Props) {
@@ -32,8 +39,17 @@ export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   // 閉じるアニメーション中もタイトルを表示し続けるため、最後の削除対象を保持する
   const [lastDeleteTarget, setLastDeleteTarget] = useState<Task | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // 削除・移動の失敗など、特定のフォームに属さないエラー
+  const [boardError, setBoardError] = useState<string | null>(null);
   const [isDeleting, startDeleteTransition] = useTransition();
+  // カードごとの最新の移動の連番（古い移動の応答を無視するため）
+  const latestMoves = useRef(new Map<string, number>());
+  // 読み上げ文の作成時に最新のタイトルを引くための参照（プラグインは最初の1回だけ作られる）
+  const [titles] = useState(() => new Map<string, string>());
+  useEffect(() => {
+    titles.clear();
+    for (const task of tasks) titles.set(task.id, task.title);
+  }, [tasks, titles]);
 
   async function handleCreate(formData: FormData) {
     const result = await createTask(formData);
@@ -49,8 +65,33 @@ export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }
     return null;
   }
 
+  async function handleMove(id: string, status: TaskStatus) {
+    const task = tasks.find((t) => t.id === id);
+    if (!task || task.status === status) return;
+
+    // 同じカードを続けて動かしたとき、古い移動の結果で新しい移動を上書きしないよう、最新の移動だけを有効にする
+    const moveId = (latestMoves.current.get(id) ?? 0) + 1;
+    latestMoves.current.set(id, moveId);
+    const isLatest = () => latestMoves.current.get(id) === moveId;
+
+    setTasks((prev) => changeTaskStatus(prev, id, status));
+    const result = await updateTask(id, toTaskFormData(task, status));
+    if (!isLatest()) return;
+    if (!result.ok) {
+      // 保存中に別の操作で動かされていなければ、元の列に戻す
+      setTasks((prev) => changeTaskStatus(prev, id, task.status));
+      setBoardError(result.error);
+      return;
+    }
+    // 保存中に編集されたタイトル・説明を消さないよう、画面の値は保ったまま更新日時だけ反映する
+    setBoardError(null);
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, updated_at: result.data.updated_at } : t)),
+    );
+  }
+
   function handleRequestDelete(task: Task) {
-    setDeleteError(null);
+    setBoardError(null);
     setDeleteTarget(task);
     setLastDeleteTarget(task);
   }
@@ -62,7 +103,7 @@ export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }
       const result = await deleteTask(id);
       setDeleteTarget(null);
       if (!result.ok) {
-        setDeleteError(result.error);
+        setBoardError(result.error);
         return;
       }
       setTasks((prev) => prev.filter((task) => task.id !== id));
@@ -71,36 +112,58 @@ export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }
 
   const handleCancelDelete = useCallback(() => setDeleteTarget(null), []);
 
+  const dragPlugins = useMemo(
+    () => [
+      ...defaultPreset.plugins.filter((plugin) => plugin !== Accessibility),
+      Accessibility.configure({
+        announcements: createAnnouncements((id) => titles.get(id) ?? ""),
+        screenReaderInstructions,
+      }),
+    ],
+    [titles],
+  );
+
   const tasksByStatus = useMemo(() => groupTasksByStatus(tasks), [tasks]);
 
   return (
     <div className="flex flex-col gap-6">
       <AddTaskCard onSubmit={handleCreate} />
 
-      {deleteError && (
+      {boardError && (
         <Alert variant="destructive">
           <CircleAlert aria-hidden="true" />
-          <AlertDescription>{deleteError}</AlertDescription>
+          <AlertDescription>{boardError}</AlertDescription>
         </Alert>
       )}
 
-      <div className="grid items-start gap-4 md:grid-cols-3">
-        {TASK_STATUSES.map(({ value, label }) => (
-          <TaskColumn
-            key={value}
-            status={value}
-            label={label}
-            tasks={tasksByStatus[value]}
-            renderTask={(task) => (
-              <TaskCard
-                task={task}
-                onUpdate={(formData) => handleUpdate(task.id, formData)}
-                onRequestDelete={() => handleRequestDelete(task)}
-              />
-            )}
-          />
-        ))}
-      </div>
+      <DragDropProvider
+        plugins={dragPlugins}
+        onDragEnd={(event) => {
+          const { source, target } = event.operation;
+          if (event.canceled || !source || !target) return;
+          const status = String(target.id);
+          if (!isTaskStatus(status)) return;
+          void handleMove(String(source.id), status);
+        }}
+      >
+        <div className="grid items-start gap-4 md:grid-cols-3">
+          {TASK_STATUSES.map(({ value, label }) => (
+            <TaskColumn
+              key={value}
+              status={value}
+              label={label}
+              tasks={tasksByStatus[value]}
+              renderTask={(task) => (
+                <TaskCard
+                  task={task}
+                  onUpdate={(formData) => handleUpdate(task.id, formData)}
+                  onRequestDelete={() => handleRequestDelete(task)}
+                />
+              )}
+            />
+          ))}
+        </div>
+      </DragDropProvider>
 
       <ConfirmDialog
         open={deleteTarget !== null}

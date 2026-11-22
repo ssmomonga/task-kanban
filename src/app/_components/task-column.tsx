@@ -1,7 +1,11 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useDroppable } from "@dnd-kit/react";
 import { Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Task, TaskStatus } from "@/lib/tasks/types";
+import { cn } from "@/lib/utils";
 
 /** 列ごとのアクセント色（見出しのドットと上端のライン） */
 const STATUS_ACCENTS: Record<TaskStatus, { dot: string; bar: string }> = {
@@ -18,13 +22,19 @@ type Props = {
   renderTask: (task: Task) => ReactNode;
 };
 
-/** カンバンの1列。見出し・件数と、タスク一覧（0件なら空の表示）を出す */
+/** カンバンの1列。見出し・件数と、タスク一覧（0件なら空の表示）を出す。カードのドロップ先になる */
 export function TaskColumn({ status, label, tasks, renderTask }: Props) {
   const accent = STATUS_ACCENTS[status];
+  // ドロップ先の id はステータスにする（ドロップ時にそのまま新しいステータスとして使う）
+  const { ref, isDropTarget } = useDroppable({ id: status });
   return (
     <section
+      ref={ref}
       aria-label={label}
-      className="relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-muted/60 p-3 ring-1 ring-foreground/5 dark:bg-muted/30"
+      className={cn(
+        "relative flex flex-col gap-3 overflow-hidden rounded-2xl bg-muted/60 p-3 ring-1 ring-foreground/5 transition-shadow dark:bg-muted/30",
+        isDropTarget && "ring-2 ring-foreground/25",
+      )}
     >
       <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1 ${accent.bar}`} />
       <header className="flex items-center justify-between px-1 pt-1">

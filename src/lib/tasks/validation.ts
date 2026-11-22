@@ -13,7 +13,7 @@ function countChars(value: string): number {
   return Array.from(value).length;
 }
 
-function isTaskStatus(value: string): value is TaskStatus {
+export function isTaskStatus(value: string): value is TaskStatus {
   return TASK_STATUSES.some((status) => status.value === value);
 }
 
