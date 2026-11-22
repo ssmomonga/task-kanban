@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
-import { CircleAlert, Plus } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { groupTasksByStatus } from "@/lib/tasks/group";
 import {
   TASK_STATUSES,
@@ -12,10 +11,10 @@ import {
   type Task,
   type UpdateTaskAction,
 } from "@/lib/tasks/types";
+import { AddTaskCard } from "./add-task-card";
 import { ConfirmDialog } from "./confirm-dialog";
 import { TaskCard } from "./task-card";
 import { TaskColumn } from "./task-column";
-import { TaskForm } from "./task-form";
 
 type Props = {
   initialTasks: Task[];
@@ -76,27 +75,7 @@ export function KanbanBoard({ initialTasks, createTask, updateTask, deleteTask }
 
   return (
     <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h2 className="flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <Plus className="size-4" aria-hidden="true" />
-              </span>
-              タスクを追加
-            </h2>
-          </CardTitle>
-          <CardDescription>追加したタスクは「未着手」列に入ります。</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TaskForm
-            label="タスクを追加"
-            submitLabel="追加"
-            pendingLabel="追加中…"
-            onSubmit={handleCreate}
-          />
-        </CardContent>
-      </Card>
+      <AddTaskCard onSubmit={handleCreate} />
 
       {deleteError && (
         <Alert variant="destructive">
